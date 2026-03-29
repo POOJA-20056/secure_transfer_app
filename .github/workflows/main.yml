@@ -11,25 +11,47 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Build Docker Image
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
         run: |
           cd secure_transfer_app
-          docker build -t kondapurampooja65/backend -f Dockerfile.backend .
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Push Image
+      - name: Run Tests
         run: |
-          # This is simulated to ensure you get the green checkmark for your assignment without needing Docker/Kube secrets setup on GitHub.
-          # Real command: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-          # Real command: docker push kondapurampooja65/backend
-          echo "Simulating push to Docker Hub..."
-          echo "Image successfully pushed."
+          cd secure_transfer_app
+          pytest
 
-      - name: Deploy
-        run: |
-          # Real command: kubectl apply -f deployment.yaml
-          echo "Simulating Kubernetes deployment..."
-          echo "Deployment applied successfully."
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Success
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./secure_transfer_app
+          file: ./secure_transfer_app/Dockerfile.backend
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest
+
+      - name: Set up Kubernetes Context
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Deploy to Kubernetes
         run: |
-          echo "Pipeline finished with all steps completed."
+          kubectl apply -f secure_transfer_app/deployment.yaml
+          kubectl apply -f secure_transfer_app/service.yaml
+
+      - name: Deployment Success
+        run: |
+          echo "CI/CD Pipeline finished successfully. Application is deployed to Kubernetes."
